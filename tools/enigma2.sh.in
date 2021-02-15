@@ -4,6 +4,9 @@ prefix=@prefix@
 exec_prefix=@exec_prefix@
 datarootdir=@datarootdir@
 
+# write -E2- on vfd display
+echo "-8-" > /dev/vfd
+
 if [ -d /home/root ]; then
 	export HOME=/home/root
 	cd

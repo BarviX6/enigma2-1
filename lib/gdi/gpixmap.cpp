@@ -186,6 +186,7 @@ static inline void added_pixmap(int size) {}
 static inline void removed_pixmap(int size) {}
 #endif
 
+#if not defined(__sh__)
 static bool is_a_candidate_for_accel(const gUnmanagedSurface* surface)
 {
 	if (surface->stride < 48)
@@ -194,17 +195,26 @@ static bool is_a_candidate_for_accel(const gUnmanagedSurface* surface)
 	{
 		case 8:
 		case 32:
+		{
 			return (surface->y * surface->stride) >= GFX_SURFACE_ACCELERATION_THRESHOLD;
+		}
 		default:
+		{
 			return false;
+		}
 	}
 }
+#endif
 
 gSurface::gSurface(int width, int height, int _bpp, int accel):
 	gUnmanagedSurface(width, height, _bpp)
 {
+#if defined(__sh__)
+	if (accel)
+#else
 	if ((accel > gPixmap::accelAuto) ||
 		((accel == gPixmap::accelAuto) && (is_a_candidate_for_accel(this))))
+#endif
 	{
 		if (gAccel::getInstance()->accelAlloc(this) != 0)
 				eDebug("[gSurface] ERROR: accelAlloc failed");
@@ -222,11 +232,13 @@ gSurface::~gSurface()
 	if (data)
 	{
 		delete [] (unsigned char*)data;
+		data = 0;
 		removed_pixmap(y * stride);
 	}
 	if (clut.data)
 	{
 		delete [] clut.data;
+		clut.data = 0;
 	}
 }
 
@@ -242,8 +254,9 @@ void gPixmap::fill(const gRegion &region, const gColor &color)
 		if (surface->bpp == 8)
 		{
 			for (int y=area.top(); y<area.bottom(); y++)
-		 		memset(((__u8*)surface->data)+y*surface->stride+area.left(), color.color, area.width());
-		} else if (surface->bpp == 16)
+		 		memset(((__u8 *)surface->data) + y * surface->stride + area.left(), color.color, area.width());
+		}
+		else if (surface->bpp == 16)
 		{
 			uint32_t icol;
 
@@ -270,9 +283,14 @@ void gPixmap::fill(const gRegion &region, const gColor &color)
 			if (surface->clut.data && color < surface->clut.colors)
 				col = surface->clut.data[color].argb();
 			else
+			{
+				if ((col&0xFF000000) == 0xFF000000)
+				{
+					col = 0xFF000000;
+				}
 				col = 0x10101 * color;
-
-			col^=0xFF000000;
+			}
+			col ^= 0xFF000000;
 
 #ifdef GPIXMAP_DEBUG
 			Stopwatch s;
@@ -615,7 +633,8 @@ void gPixmap::blit(const gPixmap &src, const eRect &_pos, const gRegion &clip, i
 		Stopwatch s;
 #endif
 		if (accel) {
-			if (!gAccel::getInstance()->blit(surface, src.surface, area, srcarea, flag)) {
+			if (!(src.surface->bpp==8 && surface->bpp==32) && 
+					(!gAccel::getInstance()->blit(surface, src.surface, area, srcarea, flag))) {
 #ifdef GPIXMAP_DEBUG
 				s.stop();
 				eDebug("[gPixmap] [BLITBENCH] accel blit (%d bytes) took %u us", srcarea.surface() * src.surface->bypp, s.elapsed_us());
@@ -1004,6 +1023,7 @@ void gPixmap::mergePalette(const gPixmap &target)
 	}
 
 	delete [] lookup;
+	lookup = 0;
 }
 
 static inline int sgn(int a)

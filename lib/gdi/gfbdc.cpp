@@ -7,17 +7,6 @@
 
 #include <time.h>
 
-#if defined(CONFIG_HISILICON_FB)
-#include <lib/gdi/grc.h>
-
-extern void bcm_accel_blit(
-		int src_addr, int src_width, int src_height, int src_stride, int src_format,
-		int dst_addr, int dst_width, int dst_height, int dst_stride,
-		int src_x, int src_y, int width, int height,
-		int dst_x, int dst_y, int dwidth, int dheight,
-		int pal_addr, int flags);
-#endif
-
 gFBDC::gFBDC()
 {
 	fb=new fbClass;
@@ -155,17 +144,6 @@ void gFBDC::exec(const gOpcode *o)
 	}
 	case gOpcode::flush:
 		fb->blit();
-#if defined(CONFIG_HISILICON_FB)
-		if(islocked()==0)
-		{
-			bcm_accel_blit(
-				surface.data_phys, surface.x, surface.y, surface.stride, 0,
-				surface_back.data_phys, surface_back.x, surface_back.y, surface_back.stride,
-				0, 0, surface.x, surface.y,
-				0, 0, surface.x, surface.y,
-				0, 0);
-		}
-#endif
 		break;
 	default:
 		gDC::exec(o);
@@ -199,11 +177,17 @@ void gFBDC::setGamma(int g)
 
 void gFBDC::setResolution(int xres, int yres, int bpp)
 {
-	if (m_pixmap && (surface.x == xres) && (surface.y == yres) && (surface.bpp == bpp)
-	#if defined(CONFIG_HISILICON_FB)
-		&& islocked()==0
-	#endif
-		)
+#if defined(__sh__)
+	/* if xres and yres are negative call SetMode with the latest xres and yres
+	 * we need that to read the new screen dimensions after a resolution change
+	 * without changing the framebuffer dimensions
+	 */
+	if (xres<0 && yres<0 ) {
+		fb->SetMode(surface.x, surface.y, bpp);
+		return;
+	}
+#endif
+	if (m_pixmap && (surface.x == xres) && (surface.y == yres) && (surface.bpp == bpp))
 		return;
 
 	if (gAccel::getInstance())
@@ -211,15 +195,17 @@ void gFBDC::setResolution(int xres, int yres, int bpp)
 
 	fb->SetMode(xres, yres, bpp);
 
+#if defined(__sh__)
+	for (int y = 0; y<yres; y++) { // make whole screen transparent
+		memset(fb->lfb+y*fb->Stride(), 0x00, fb->Stride());
+	}
+#endif
 	surface.x = xres;
 	surface.y = yres;
 	surface.bpp = bpp;
 	surface.bypp = bpp / 8;
 	surface.stride = fb->Stride();
 	surface.data = fb->lfb;
-
-	for (int y=0; y<yres; y++)	// make whole screen transparent
-		memset(fb->lfb+ y * xres * 4, 0x00, xres * 4);
 
 	surface.data_phys = fb->getPhysAddr();
 
@@ -252,15 +238,6 @@ void gFBDC::setResolution(int xres, int yres, int bpp)
 	}
 
 	surface_back.clut = surface.clut;
-
-#if defined(CONFIG_HISILICON_FB)
-	if(islocked()==0)
-	{
-		gUnmanagedSurface s(surface);
-		surface = surface_back;
-		surface_back = s;
-	}
-#endif
 
 	m_pixmap = new gPixmap(&surface);
 }
