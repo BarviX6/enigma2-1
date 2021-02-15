@@ -41,6 +41,8 @@
 #include "bsod.h"
 #include "version_info.h"
 
+#include <gst/gst.h>
+
 #ifdef OBJECT_DEBUG
 int object_total_remaining;
 
@@ -244,7 +246,7 @@ int main(int argc, char **argv)
 	atexit(object_dump);
 #endif
 
-	printf("Boxtype: %s\n", BOXTYPE);
+	gst_init(&argc, &argv);
 
 	// set pythonpath if unset
 	setenv("PYTHONPATH", eEnv::resolve("${libdir}/enigma2/python").c_str(), 0);
@@ -252,7 +254,7 @@ int main(int argc, char **argv)
 	printf("DVB_API_VERSION %d DVB_API_VERSION_MINOR %d\n", DVB_API_VERSION, DVB_API_VERSION_MINOR);
 
 	// get enigma2 debug level settings
-	debugLvl = getenv("ENIGMA_DEBUG_LVL") ? atoi(getenv("ENIGMA_DEBUG_LVL")) : 3;
+	debugLvl = getenv("ENIGMA_DEBUG_LVL") ? atoi(getenv("ENIGMA_DEBUG_LVL")) : DEFAULT_DEBUG_LVL;
 	if (debugLvl < 0)
 		debugLvl = 0;
 	printf("ENIGMA_DEBUG_LVL=%d\n", debugLvl);
@@ -262,6 +264,7 @@ int main(int argc, char **argv)
 	ePython python;
 	eMain main;
 
+#if 1
 	ePtr<gMainDC> my_dc;
 	gMainDC::getInstance(my_dc);
 
@@ -287,7 +290,7 @@ int main(int argc, char **argv)
 	dsk_lcd.setStyleID(my_lcd_dc->size().width() == 320 ? 1 : 2);
 #else
  	dsk_lcd.setStyleID(my_lcd_dc->size().width() == 96 ? 2 : 1);
-#endif		
+#endif	
 	dsk_lcd.setStyleID(1);
 
 /*	if (double_buffer)
@@ -303,6 +306,7 @@ int main(int argc, char **argv)
 	dsk_lcd.setDC(my_lcd_dc);
 
 	dsk.setBackgroundColor(gRGB(0,0,0,0xFF));
+#endif
 
 		/* redrawing is done in an idle-timer, so we have to set the context */
 	dsk.setRedrawTask(main);
@@ -405,9 +409,9 @@ const char *getEnigmaVersionString()
 	return enigma2_version;
 }
 
-const char *getBoxType()
+const char *getGStreamerVersionString()
 {
-	return BOXTYPE;
+	return gst_version_string();
 }
 
 #include <malloc.h>
